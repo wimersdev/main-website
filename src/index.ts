@@ -1,14 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 //Add a new scene
-
-const loader = new THREE.TextureLoader();
 
 function hero3d() {
   const scene = new THREE.Scene();
@@ -16,31 +10,6 @@ function hero3d() {
 
   //Add a object scale value (less-bigger object)
   const scaleValue = 600;
-
-  //Init RGBE Loader for HDRI environment map (better to change to cubemap)
-  const envMap = new RGBELoader().load(
-    'https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/63f4b3177336d31122b5d801_03.txt',
-    function (texture) {
-      texture.mapping = THREE.EquirectangularReflectionMapping;
-      scene.environment = texture;
-      scene.backgroundIntensity = 1;
-    }
-  );
-  /*
-  //Glass shader
-  const material = new THREE.RawShaderMaterial({
-    vertexShader: ``,
-    fragmentShader: ``,
-  });
-  */
-  //Add glass material
-  const material = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
-    roughness: 0,
-    transmission: 1,
-    thickness: 1,
-    envMap: envMap,
-  });
 
   const canvasHolder = document.getElementById('canvasholder');
 
@@ -55,21 +24,52 @@ function hero3d() {
   meshGroup.scale.x = sizes.width / scaleValue; //Set the scale values for meshGroup
   meshGroup.scale.y = sizes.width / scaleValue;
   meshGroup.scale.z = sizes.width / scaleValue;
+  meshGroup.position.x = 1.5;
   scene.add(meshGroup);
+
+  const meshGroup2 = new THREE.Group();
+  meshGroup.scale.x = sizes.width / scaleValue; //Set the scale values for meshGroup
+  meshGroup.scale.y = sizes.width / scaleValue;
+  meshGroup.scale.z = sizes.width / scaleValue;
+  scene.add(meshGroup2);
 
   //Init GLTF Loader for 3d models
   const gltfLoader = new GLTFLoader();
 
-  //Load cube
+  // Load the 3D model
   gltfLoader.load(
     'https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/63f4b317da759861bfc961d6_cube-glass-test.txt',
     (gltf) => {
-      const cube = gltf.scene.children[0];
-      const geometry = cube.geometry.clone();
-      const mesh = new THREE.Mesh(geometry, material);
-      meshGroup.add(mesh);
+      // Create a geometry to store the vertices of the model
+      const geometry = new THREE.BufferGeometry();
+
+      // Traverse the model's geometry and extract vertices
+      gltf.scene.traverse((child) => {
+        if (child.isMesh) {
+          const vertices = child.geometry.attributes.position.array;
+          geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        }
+      });
+
+      // Create a PointsMaterial for the point cloud
+      const material = new THREE.PointsMaterial({
+        color: 0x000000,
+        size: 0.15,
+      });
+
+      // Create the point cloud using the extracted vertices and material
+      const pointCloud = new THREE.Points(geometry, material);
+      const pointsScale = 0.5;
+      pointCloud.scale.x = pointsScale;
+      pointCloud.scale.y = pointsScale;
+      pointCloud.scale.z = pointsScale;
+
+      // Add the point cloud to the scene
+      meshGroup.add(pointCloud);
     }
   );
+
+  //Load cube
 
   //Camera
   const aspectRatio = sizes.width / sizes.height;
@@ -95,32 +95,9 @@ function hero3d() {
 
   const renderTarget = new THREE.WebGLRenderTarget(sizes.width, sizes.height, parameters);
 
-  //Post processing
-  const effectComposer = new EffectComposer(renderer, renderTarget);
-  effectComposer.setSize(sizes.width, sizes.height);
-  effectComposer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-  //Add render passes
-  const renderPass = new RenderPass(scene, camera);
-  effectComposer.addPass(renderPass);
-
-  //Add bloom
-  const bloom = new UnrealBloomPass();
-  bloom.threshhold = 0;
-  bloom.resolution = 3;
-  bloom.radius = 0.2;
-  bloom.strength = 1;
-  bloom.transmission = 1;
-  //effectComposer.addPass(bloom);
-
   //Renderer config
   renderer.setSize(sizes.width, sizes.height); //Set size for renderer
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
-  renderer.physicallyCorrectLights = true;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.7;
-  renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.antialias = true;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 4));
 
   //When window resizing
   window.addEventListener('resize', () => {
@@ -134,6 +111,10 @@ function hero3d() {
     meshGroup.scale.y = sizes.width / scaleValue;
     meshGroup.scale.z = sizes.width / scaleValue;
 
+    meshGroup2.scale.x = sizes.width / scaleValue;
+    meshGroup2.scale.y = sizes.width / scaleValue;
+    meshGroup2.scale.z = sizes.width / scaleValue;
+
     // Update camera
     camera.aspect = sizes.width / sizes.height;
     camera.updateProjectionMatrix();
@@ -144,18 +125,19 @@ function hero3d() {
 
   //Orbitcontrols
   const controls = new OrbitControls(camera, canvas); //Add Orbit Camera
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 3;
-  controls.enabled = false;
+
+  controls.enabled = true;
 
   //Animation render
   const tick = () =>
     //Function allows to refresh screen every frame
     {
+      meshGroup.rotation.y += 0.0015;
+      meshGroup.rotation.x += 0.0015;
+      meshGroup.rotation.z += 0.0015;
       // Render
-      //renderer.render(scene, camera)
+      renderer.render(scene, camera);
       controls.update();
-      effectComposer.render();
 
       // Call tick again on the next frame
       window.requestAnimationFrame(tick);
