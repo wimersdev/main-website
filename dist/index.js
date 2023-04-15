@@ -23562,6 +23562,7 @@
     meshGroup.scale.x = sizes.width / scaleValue;
     meshGroup.scale.y = sizes.width / scaleValue;
     meshGroup.scale.z = sizes.width / scaleValue;
+    meshGroup2.rotation.x = -0.5;
     scene.add(meshGroup2);
     const gltfLoader = new GLTFLoader();
     gltfLoader.load(
@@ -23574,16 +23575,34 @@
             geometry.setAttribute("position", new BufferAttribute(vertices, 3));
           }
         });
-        const material = new PointsMaterial({
+        const material2 = new PointsMaterial({
           color: 0,
           size: 0.15
         });
-        const pointCloud = new Points(geometry, material);
+        const pointCloud = new Points(geometry, material2);
         const pointsScale = 0.5;
         pointCloud.scale.x = pointsScale;
         pointCloud.scale.y = pointsScale;
         pointCloud.scale.z = pointsScale;
         meshGroup.add(pointCloud);
+      }
+    );
+    const material = new MeshBasicMaterial({
+      color: 14145495,
+      wireframe: true
+      //side: THREE.DoubleSided,
+    });
+    gltfLoader.load(
+      "https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/643948a6cee32054fd9c76e7_arena2.txt",
+      (gltf) => {
+        const cube = gltf.scene.children[0];
+        const geometry = cube.geometry.clone();
+        const mesh = new Mesh(geometry, material);
+        const meshScale = 32;
+        mesh.scale.x = meshScale;
+        mesh.scale.y = meshScale / 4;
+        mesh.scale.z = meshScale;
+        meshGroup2.add(mesh);
       }
     );
     const aspectRatio = sizes.width / sizes.height;
@@ -23626,6 +23645,7 @@
       meshGroup.rotation.y += 15e-4;
       meshGroup.rotation.x += 15e-4;
       meshGroup.rotation.z += 15e-4;
+      meshGroup2.rotation.y += 15e-4;
       renderer.render(scene, camera);
       controls.update();
       window.requestAnimationFrame(tick);

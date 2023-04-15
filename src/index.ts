@@ -31,6 +31,7 @@ function hero3d() {
   meshGroup.scale.x = sizes.width / scaleValue; //Set the scale values for meshGroup
   meshGroup.scale.y = sizes.width / scaleValue;
   meshGroup.scale.z = sizes.width / scaleValue;
+  meshGroup2.rotation.x = -0.5;
   scene.add(meshGroup2);
 
   //Init GLTF Loader for 3d models
@@ -69,7 +70,28 @@ function hero3d() {
     }
   );
 
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xd7d7d7,
+    wireframe: true,
+    //side: THREE.DoubleSided,
+  });
+
   //Load cube
+  gltfLoader.load(
+    'https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/643948a6cee32054fd9c76e7_arena2.txt',
+    (gltf) => {
+      const cube = gltf.scene.children[0];
+      const geometry = cube.geometry.clone();
+      const mesh = new THREE.Mesh(geometry, material);
+      const meshScale = 32;
+
+      mesh.scale.x = meshScale;
+      mesh.scale.y = meshScale / 4;
+      mesh.scale.z = meshScale;
+
+      meshGroup2.add(mesh);
+    }
+  );
 
   //Camera
   const aspectRatio = sizes.width / sizes.height;
@@ -135,6 +157,8 @@ function hero3d() {
       meshGroup.rotation.y += 0.0015;
       meshGroup.rotation.x += 0.0015;
       meshGroup.rotation.z += 0.0015;
+
+      meshGroup2.rotation.y += 0.0015;
       // Render
       renderer.render(scene, camera);
       controls.update();
