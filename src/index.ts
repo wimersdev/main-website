@@ -4,135 +4,125 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+
+console.clear();
+
+const clock = new THREE.Clock();
 
 //Add a new scene
+const scene = new THREE.Scene();
+const meshGroup = new THREE.Group();
+scene.add(meshGroup);
+const canvas = document.querySelector('canvas.webgl');
 
-const loader = new THREE.TextureLoader();
+const hdrEquirect = new RGBELoader().load(
+  'https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/648c4d384c0f10df3fb5805c_studio_small_08_1k.txt',
+  () => {
+    hdrEquirect.mapping = THREE.EquirectangularReflectionMapping;
+  }
+);
 
-function hero3d() {
-  const scene = new THREE.Scene();
-  const canvas = document.querySelector('canvas.webgl');
+//Sizes (canvas sizing)
+const sizes = {
+  width: window.innerWidth,
+  height: window.innerHeight,
+};
 
-  //Add a object scale value (less-bigger object)
-  const scaleValue = 600;
+//Camera
+const camera = new THREE.PerspectiveCamera(50, sizes.width / sizes.height, 0.01); //Add a new camera with canvas sized field of view
+//camera.position.x = 25;
+//camera.position.y = 30;
+camera.position.z = 5; //Make camera not centered in axis 0
+scene.add(camera); //Add Camera to Scene
 
-  //Init RGBE Loader for HDRI environment map (better to change to cubemap)
-  const envMap = new RGBELoader().load(
-    'https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/63f4b3177336d31122b5d801_03.txt',
-    function (texture) {
-      texture.mapping = THREE.EquirectangularReflectionMapping;
-      scene.environment = texture;
-      scene.backgroundIntensity = 1;
+const material = new THREE.MeshPhysicalMaterial({
+  color: 0x222fff,
+  roughness: 0.05,
+  transmission: 0.7,
+  thickness: 1,
+  envMap: hdrEquirect,
+  envMapIntensity: 0.5,
+});
+
+const object = new THREE.Object3D();
+
+// На верхнем уровне
+const clones = [];
+
+const gltfLoader = new GLTFLoader();
+gltfLoader.load(
+  'https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/648c4a2e4f99b8ac202ee817_slash.txt',
+  (gltf) => {
+    const slash = gltf.scene.children[0].geometry;
+    const bufferMesh = new THREE.Mesh(slash, material);
+    object.add(bufferMesh);
+
+    const cloneCount = 50; // количество клонов
+    const randomRange = 15; // диапазон расположения клонов
+
+    for (let i = 0; i < cloneCount; i++) {
+      // Клонирование модели
+      const modelClone = object.clone();
+
+      // Создание случайной позиции в пределах заданного диапазона
+      const randomX = Math.random() * randomRange - randomRange / 2;
+      const randomY = Math.random() * randomRange - randomRange / 2;
+      const randomZ = Math.random() * randomRange - randomRange / 2;
+
+      // Установка новой позиции для клона
+      modelClone.position.set(randomX, randomY, randomZ);
+      modelClone.rotation.set(randomX, randomY, randomZ);
+
+      modelClone.userData.offset = Math.random() * 7 * Math.PI; // случайное смещение от 0 до 2Пи
+      clones.push(modelClone); // добавление клонов в массив
+      scene.add(modelClone);
     }
-  );
-  /*
-  //Glass shader
-  const material = new THREE.RawShaderMaterial({
-    vertexShader: ``,
-    fragmentShader: ``,
-  });
-  */
-  //Add glass material
-  const material = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
-    roughness: 0,
-    transmission: 1,
-    thickness: 1,
-    envMap: envMap,
-  });
+  }
+);
 
-  const canvasHolder = document.getElementById('canvasholder');
+// lights
+const ambientLight = new THREE.AmbientLight(0x1792ff, 0.25);
+//scene.add(ambientLight);
+const skyColor = 0x0087ff; // light blue
+const groundColor = 0xda6c48; // brownish
+const light = new THREE.HemisphereLight(skyColor, groundColor, 0.25);
+light.position.set(0, 5, 0);
+scene.add(light);
 
-  //Sizes (canvas sizing)
-  const sizes = {
-    width: canvasHolder.offsetWidth,
-    height: canvasHolder.offsetHeight,
-  };
+//Renderer
+const renderer = new THREE.WebGLRenderer({
+  //Create renderer
+  canvas: canvas,
+  alpha: true,
+});
 
-  //Add a group for mesh manipulations
-  const meshGroup = new THREE.Group();
-  meshGroup.scale.x = sizes.width / scaleValue; //Set the scale values for meshGroup
-  meshGroup.scale.y = sizes.width / scaleValue;
-  meshGroup.scale.z = sizes.width / scaleValue;
-  scene.add(meshGroup);
+renderer.setClearColor(0x000000, 0);
+renderer.setSize(sizes.width, sizes.height); //Set size for renderer
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+const controls = new OrbitControls(camera, canvas); //Add Orbit Camera
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.5;
+controls.enabled = false;
 
-  //Init GLTF Loader for 3d models
-  const gltfLoader = new GLTFLoader();
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
 
-  //Load cube
-  gltfLoader.load(
-    'https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/63f4b317da759861bfc961d6_cube-glass-test.txt',
-    (gltf) => {
-      const cube = gltf.scene.children[0];
-      const geometry = cube.geometry.clone();
-      const mesh = new THREE.Mesh(geometry, material);
-      meshGroup.add(mesh);
-    }
-  );
+const tick = () => {
+  const elapsedTime = clock.getElapsedTime();
 
-  //Camera
-  const aspectRatio = sizes.width / sizes.height;
-  const camera = new THREE.PerspectiveCamera(10, aspectRatio);
-  camera.position.z = 30; //Make camera not centered in axis 0
-  camera.position.y = 15; //add camera angle
-  scene.add(camera); //Add Camera to Scene
-
-  //Renderer
-  const renderer = new THREE.WebGLRenderer({
-    canvas: canvas,
-    antialias: true,
-    alpha: true,
+  // Вращение и движение каждого клона
+  clones.forEach((clone) => {
+    clone.rotation.y += 0.0025; // более плавное вращение
+    clone.position.y += (Math.sin(elapsedTime + clone.userData.offset) / 2) * 0.01; // добавление движения
   });
 
-  //Render Target
-  const parameters = {
-    minFilter: THREE.LinearFilter,
-    magFilter: THREE.LinearFilter,
-    format: THREE.RGBAFormat,
-    stencilBuffer: false,
-  };
-
-  const renderTarget = new THREE.WebGLRenderTarget(sizes.width, sizes.height, parameters);
-
-  //Post processing
-  const effectComposer = new EffectComposer(renderer, renderTarget);
-  effectComposer.setSize(sizes.width, sizes.height);
-  effectComposer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-  //Add render passes
-  const renderPass = new RenderPass(scene, camera);
-  effectComposer.addPass(renderPass);
-
-  //Add bloom
-  const bloom = new UnrealBloomPass();
-  bloom.threshhold = 0;
-  bloom.resolution = 3;
-  bloom.radius = 0.2;
-  bloom.strength = 1;
-  bloom.transmission = 1;
-  //effectComposer.addPass(bloom);
-
-  //Renderer config
-  renderer.setSize(sizes.width, sizes.height); //Set size for renderer
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
-  renderer.physicallyCorrectLights = true;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.7;
-  renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.antialias = true;
-
-  //When window resizing
   window.addEventListener('resize', () => {
     // Update sizes
-    //Sizes (canvas sizing)
-    const sizes = {
-      width: canvasHolder.offsetWidth,
-      height: canvasHolder.offsetHeight,
-    };
-    meshGroup.scale.x = sizes.width / scaleValue;
-    meshGroup.scale.y = sizes.width / scaleValue;
-    meshGroup.scale.z = sizes.width / scaleValue;
+    sizes.width = window.innerWidth;
+    sizes.height = window.innerHeight;
 
     // Update camera
     camera.aspect = sizes.width / sizes.height;
@@ -142,26 +132,14 @@ function hero3d() {
     renderer.setSize(sizes.width, sizes.height);
   });
 
-  //Orbitcontrols
-  const controls = new OrbitControls(camera, canvas); //Add Orbit Camera
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 3;
-  controls.enabled = false;
+  // Обновление OrbitControls
+  controls.update();
 
-  //Animation render
-  const tick = () =>
-    //Function allows to refresh screen every frame
-    {
-      // Render
-      //renderer.render(scene, camera)
-      controls.update();
-      effectComposer.render();
+  // Рендеринг сцены
+  renderer.render(scene, camera);
 
-      // Call tick again on the next frame
-      window.requestAnimationFrame(tick);
-    };
+  // Вызов tick на следующем кадре
+  window.requestAnimationFrame(tick);
+};
 
-  tick();
-}
-
-hero3d();
+tick();
