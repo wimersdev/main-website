@@ -61,7 +61,6 @@ gltfLoader.load(
     const randomRange = 15; // диапазон расположения клонов
 
     for (let i = 0; i < cloneCount; i++) {
-      // Клонирование модели
       const modelClone = object.clone();
 
       // Создание случайной позиции в пределах заданного диапазона
