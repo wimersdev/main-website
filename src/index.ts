@@ -1,144 +1,95 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 
-console.clear();
+let scene, camera, renderer, iphone, hovered = false;
 
-const clock = new THREE.Clock();
+function init() {
+    // Create scene
+    scene = new THREE.Scene();
 
-//Add a new scene
-const scene = new THREE.Scene();
-const meshGroup = new THREE.Group();
-scene.add(meshGroup);
-const canvas = document.querySelector('canvas.webgl');
+    // Create camera
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 5;
 
-const hdrEquirect = new RGBELoader().load(
-  'https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/648c4d384c0f10df3fb5805c_studio_small_08_1k.txt',
-  () => {
-    hdrEquirect.mapping = THREE.EquirectangularReflectionMapping;
-  }
-);
+    // Create renderer
+    const canvas = document.querySelector('#webgl');
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-//Sizes (canvas sizing)
-const sizes = {
-  width: window.innerWidth,
-  height: window.innerHeight,
-};
+    // Add light
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(5, 5, 5).normalize();
+    scene.add(light);
 
-//Camera
-const camera = new THREE.PerspectiveCamera(50, sizes.width / sizes.height, 0.01); //Add a new camera with canvas sized field of view
-//camera.position.x = 25;
-//camera.position.y = 30;
-camera.position.z = 5; //Make camera not centered in axis 0
-scene.add(camera); //Add Camera to Scene
+    // Load iPhone model
+    const loader = new GLTFLoader();
+    loader.load('/models/ip.glb', function(gltf) {
+        iphone = gltf.scene;
+        iphone.scale.set(3, 3, 3);
+        iphone.position.set(0, 0.163, 0);
+        scene.add(iphone);
 
-const material = new THREE.MeshPhysicalMaterial({
-  color: 0x222fff,
-  roughness: 0.05,
-  transmission: 0.7,
-  thickness: 1,
-  envMap: hdrEquirect,
-  envMapIntensity: 0.5,
-});
+        // Apply texture to the screen
+        iphone.traverse((child) => {
+            if (child.isMesh && child.name === "screen") {
+                const textureLoader = new THREE.TextureLoader();
+                const texture = textureLoader.load('/textures/screen01.png');
+                const material = new THREE.MeshBasicMaterial({ map: texture });
+                child.material = material;
+            }
+        });
+    }, undefined, function(error) {
+        console.error(error);
+    });
 
-const object = new THREE.Object3D();
+    // Handle window resize
+    window.addEventListener('resize', onWindowResize, false);
 
-// На верхнем уровне
-const clones = [];
+    // Handle mouse events
+    document.addEventListener('pointermove', onPointerMove, false);
+    document.addEventListener('pointerout', onPointerOut, false);
 
-const gltfLoader = new GLTFLoader();
-gltfLoader.load(
-  'https://uploads-ssl.webflow.com/6385ed21375f1c00a4a3f887/648c4a2e4f99b8ac202ee817_slash.txt',
-  (gltf) => {
-    const slash = gltf.scene.children[0].geometry;
-    const bufferMesh = new THREE.Mesh(slash, material);
-    object.add(bufferMesh);
+    animate();
+}
 
-    const cloneCount = 50; // количество клонов
-    const randomRange = 15; // диапазон расположения клонов
-
-    for (let i = 0; i < cloneCount; i++) {
-      const modelClone = object.clone();
-
-      // Создание случайной позиции в пределах заданного диапазона
-      const randomX = Math.random() * randomRange - randomRange / 2;
-      const randomY = Math.random() * randomRange - randomRange / 2;
-      const randomZ = Math.random() * randomRange - randomRange / 2;
-
-      // Установка новой позиции для клона
-      modelClone.position.set(randomX, randomY, randomZ);
-      modelClone.rotation.set(randomX, randomY, randomZ);
-
-      modelClone.userData.offset = Math.random() * 7 * Math.PI; // случайное смещение от 0 до 2Пи
-      clones.push(modelClone); // добавление клонов в массив
-      scene.add(modelClone);
-    }
-  }
-);
-
-// lights
-const ambientLight = new THREE.AmbientLight(0x1792ff, 0.25);
-//scene.add(ambientLight);
-const skyColor = 0x0087ff; // light blue
-const groundColor = 0xda6c48; // brownish
-const light = new THREE.HemisphereLight(skyColor, groundColor, 0.25);
-light.position.set(0, 5, 0);
-scene.add(light);
-
-//Renderer
-const renderer = new THREE.WebGLRenderer({
-  //Create renderer
-  canvas: canvas,
-  alpha: true,
-});
-
-renderer.setClearColor(0x000000, 0);
-renderer.setSize(sizes.width, sizes.height); //Set size for renderer
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-const controls = new OrbitControls(camera, canvas); //Add Orbit Camera
-controls.autoRotate = true;
-controls.autoRotateSpeed = 0.5;
-controls.enabled = false;
-
-const composer = new EffectComposer(renderer);
-const renderPass = new RenderPass(scene, camera);
-composer.addPass(renderPass);
-
-const tick = () => {
-  const elapsedTime = clock.getElapsedTime();
-
-  // Вращение и движение каждого клона
-  clones.forEach((clone) => {
-    clone.rotation.y += 0.0025; // более плавное вращение
-    clone.position.y += (Math.sin(elapsedTime + clone.userData.offset) / 2) * 0.01; // добавление движения
-  });
-
-  window.addEventListener('resize', () => {
-    // Update sizes
-    sizes.width = window.innerWidth;
-    sizes.height = window.innerHeight;
-
-    // Update camera
-    camera.aspect = sizes.width / sizes.height;
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
 
-    // Update renderer
-    renderer.setSize(sizes.width, sizes.height);
-  });
+function onPointerMove(event) {
+    if (iphone) {
+        const intersects = getIntersects(event.clientX, event.clientY);
+        if (intersects.length > 0) {
+            hovered = true;
+            document.body.style.cursor = 'pointer';
+        } else {
+            hovered = false;
+            document.body.style.cursor = 'default';
+        }
+    }
+}
 
-  // Обновление OrbitControls
-  controls.update();
+function onPointerOut() {
+    hovered = false;
+    document.body.style.cursor = 'default';
+}
 
-  // Рендеринг сцены
-  renderer.render(scene, camera);
+function getIntersects(x, y) {
+    const mouse = new THREE.Vector2();
+    mouse.x = (x / window.innerWidth) * 2 - 1;
+    mouse.y = -(y / window.innerHeight) * 2 + 1;
 
-  // Вызов tick на следующем кадре
-  window.requestAnimationFrame(tick);
-};
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    return raycaster.intersectObject(iphone, true);
+}
 
-tick();
+function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+}
+
+init();
